@@ -215,11 +215,12 @@ def get_quantization_tables(quality):
     return q_table_y, q_table_cbcr
 
 
-def main(image_path, quality = 100):
+def main(image_path, quality=100):
     # 1. RGB -> YCbCr
     input_image = np.array(Image.open(image_path))
     h, w = input_image.shape[:2]
-    ycbcr_image = pad_image(rgb2ycbcr(input_image)) # Pad image to be a multiple of 8 on height and width
+    # Pad image to be a multiple of 8 on height and width
+    ycbcr_image = pad_image(rgb2ycbcr(input_image))
 
     # 2. 8x8 blocks
     blocks = divide_into_blocks(ycbcr_image)
@@ -231,15 +232,19 @@ def main(image_path, quality = 100):
     compressed_blocks, codebooks = compress(blocks, q_table_y, q_table_cbcr)
 
     # 4. Decompression
-    decompressed_blocks = decompress(compressed_blocks, codebooks, q_table_y, q_table_cbcr)
+    decompressed_blocks = decompress(
+        compressed_blocks, codebooks, q_table_y, q_table_cbcr)
 
     # 5. Image reconstruction from decompressed blocks
-    reconstructed_image = reconstruct_image(decompressed_blocks, ycbcr_image.shape[0], ycbcr_image.shape[1])
+    reconstructed_image = reconstruct_image(
+        decompressed_blocks, ycbcr_image.shape[0], ycbcr_image.shape[1])
     reconstructed_image = reconstructed_image[:h, :w, :]    # Crop image
-    reconstructed_image_rgb = cv2.cvtColor(reconstructed_image, cv2.COLOR_YCrCb2RGB)
+    reconstructed_image_rgb = cv2.cvtColor(
+        reconstructed_image, cv2.COLOR_YCrCb2RGB)
 
     output_image = Image.fromarray(reconstructed_image_rgb)
     return output_image
+
 
 def compress(blocks, q_table_y, q_table_cbcr):
     compressed_blocks = []
@@ -254,8 +259,9 @@ def compress(blocks, q_table_y, q_table_cbcr):
         huffman_encoded, codebook = huffman_encoding(rle)
         compressed_blocks.append(huffman_encoded)
         codebooks.append(codebook)
-    
+
     return compressed_blocks, codebooks
+
 
 def decompress(compressed_blocks, codebooks, q_table_y, q_table_cbcr):
     decompressed_blocks = []
@@ -264,18 +270,20 @@ def decompress(compressed_blocks, codebooks, q_table_y, q_table_cbcr):
     for encoded_data, codebook in zip(compressed_blocks, codebooks):
         decoded_data = huffman_decoding(encoded_data, codebook)
         rle = [(k, len(list(g))) for k, g in itertools.groupby(decoded_data)]
-        zigzagged_block = [symbol for symbol, count in rle for _ in range(count)]
+        zigzagged_block = [symbol for symbol,
+                           count in rle for _ in range(count)]
         zigzagged_block = np.array(zigzagged_block)
         quantized_block = inverse_zigzag_order(zigzagged_block)
-        dequantized_block = dequantize(quantized_block, q_table_y, q_table_cbcr)
+        dequantized_block = dequantize(
+            quantized_block, q_table_y, q_table_cbcr)
         idct_block = apply_idct(dequantized_block)
         decompressed_blocks.append(idct_block)
-    
+
     return decompressed_blocks
-    
+
 
 if __name__ == '__main__':
-    image_path = './flower.png' #args.image_path
+    image_path = './flower.png'  # args.image_path
     quality = 50    # args.image_path   # Adjust this value to control the compression quality
 
     # Lossless-JPEG main algorithm
@@ -287,5 +295,5 @@ if __name__ == '__main__':
     output_image.save(outName)
     output_image.show()
 
-    print(f"JPEG compression and decompression applied. Compressed image saved as '{outName}'.")
-    
+    print(
+        f"JPEG compression and decompression applied. Compressed image saved as '{outName}'.")
